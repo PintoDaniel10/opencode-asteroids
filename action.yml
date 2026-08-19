@@ -1,0 +1,22 @@
+name: "opencode-asteroids"
+description: "Acción para ejecutar modelos de OpenCode en comentarios de issues y PRs"
+author: "PintoDaniel10"
+branding:
+  icon: "cpu"
+  color: "blue"
+
+runs:
+  using: "node24"
+  main: "dist/index.js"
+
+inputs:
+  model:
+    description: "Modelo a utilizar (ej. opencode-go/glm-5.2)"
+    required: true
+  api-key:
+    description: "API Key de OpenCode"
+    required: true
+
+outputs:
+  result:
+    description: "Respuesta generada por el modelo"
