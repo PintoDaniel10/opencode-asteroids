@@ -66,6 +66,9 @@ const POWERUP_CHANCE = 0.15;
 const POWERUP_LIFE   = 10;
 const BOOST_DURATION = 5;
 const BOOST_MULT     = 2;
+const TRIPLE_DURATION = 5;
+const TRIPLE_SPREAD   = 0.18;
+const TRIPLE_COLOR    = '#3fd2ff';
 const SHOOTING_STAR_SPEED   = 220;
 const SHOOTING_STAR_LIFE    = 6;
 const SHOOTING_STAR_POINTS  = 200;
@@ -142,6 +145,7 @@ class Ship {
     this.invincible    = 3;
     this.shootCooldown = 0;
     this.boostTimer    = 0;
+    this.tripleTimer   = 0;
     this.dead          = false;
   }
 
@@ -150,6 +154,7 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.boostTimer    > 0) this.boostTimer    -= dt;
+    if (this.tripleTimer   > 0) this.tripleTimer   -= dt;
 
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
@@ -177,6 +182,13 @@ class Ship {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
+    if (this.tripleTimer > 0) {
+      return [
+        new Bullet(ox, oy, this.angle - TRIPLE_SPREAD),
+        new Bullet(ox, oy, this.angle),
+        new Bullet(ox, oy, this.angle + TRIPLE_SPREAD),
+      ];
+    }
     return [new Bullet(ox, oy, this.angle)];
   }
 
@@ -201,6 +213,18 @@ class Ship {
     ctx.lineTo(-12,  9);   // ala derecha
     ctx.closePath();
     ctx.stroke();
+
+    // Indicador de triple shot: abanico cian en el morro
+    if (this.tripleTimer > 0) {
+      ctx.strokeStyle = TRIPLE_COLOR;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const off of [-TRIPLE_SPREAD, 0, TRIPLE_SPREAD]) {
+        ctx.moveTo(20, 0);
+        ctx.lineTo(20 + Math.cos(off) * 8, Math.sin(off) * 8);
+      }
+      ctx.stroke();
+    }
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
@@ -249,7 +273,8 @@ class Particle {
 }
 
 class PowerUp {
-  constructor(x, y) {
+  constructor(x, y, type = 'boost') {
+    this.type = type;
     this.x = x;
     this.y = y;
     const angle = rand(0, Math.PI * 2);
@@ -276,20 +301,45 @@ class PowerUp {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
-    ctx.strokeStyle = ACCENT;
-    ctx.fillStyle   = 'rgba(255, 210, 63, 0.18)';
-    ctx.lineWidth   = 2;
-    ctx.lineJoin    = 'round';
-    ctx.beginPath();
-    ctx.moveTo( 4, -13);
-    ctx.lineTo(-5,   2);
-    ctx.lineTo( 0,   2);
-    ctx.lineTo(-3,  13);
-    ctx.lineTo( 6,  -2);
-    ctx.lineTo( 1,  -2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    if (this.type === 'triple') {
+      ctx.strokeStyle = TRIPLE_COLOR;
+      ctx.fillStyle   = 'rgba(63, 210, 255, 0.18)';
+      ctx.lineWidth   = 2;
+      ctx.lineJoin    = 'round';
+      ctx.lineCap     = 'round';
+      // Tridente: base común + 3 puntas en abanico
+      ctx.beginPath();
+      ctx.moveTo(0, 10);
+      ctx.lineTo(0, 2);
+      ctx.moveTo(0, 2);
+      ctx.lineTo(-10, -8);
+      ctx.moveTo(0, 2);
+      ctx.lineTo(0, -12);
+      ctx.moveTo(0, 2);
+      ctx.lineTo(10, -8);
+      ctx.stroke();
+      // Puntas de las 3 flechas
+      for (const [px, py] of [[-10, -8], [0, -12], [10, -8]]) {
+        ctx.beginPath();
+        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      ctx.strokeStyle = ACCENT;
+      ctx.fillStyle   = 'rgba(255, 210, 63, 0.18)';
+      ctx.lineWidth   = 2;
+      ctx.lineJoin    = 'round';
+      ctx.beginPath();
+      ctx.moveTo( 4, -13);
+      ctx.lineTo(-5,   2);
+      ctx.lineTo( 0,   2);
+      ctx.lineTo(-3,  13);
+      ctx.lineTo( 6,  -2);
+      ctx.lineTo( 1,  -2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.restore();
   }
 }
@@ -479,7 +529,8 @@ function update(dt) {
   if (!ship.dead) {
     for (const p of powerups) {
       if (!p.dead && dist(ship, p) < ship.radius + p.radius) {
-        ship.boostTimer = BOOST_DURATION;
+        if (p.type === 'triple') ship.tripleTimer = TRIPLE_DURATION;
+        else                     ship.boostTimer  = BOOST_DURATION;
         p.dead = true;
       }
     }
@@ -499,7 +550,10 @@ function update(dt) {
         a.dead = true;
         score += POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
-        if (a.size >= 2 && Math.random() < POWERUP_CHANCE) powerups.push(new PowerUp(a.x, a.y));
+        if (a.size >= 2 && Math.random() < POWERUP_CHANCE) {
+          const type = Math.random() < 0.5 ? 'boost' : 'triple';
+          powerups.push(new PowerUp(a.x, a.y, type));
+        }
         newAsteroids.push(...a.split());
       }
     }
@@ -574,6 +628,12 @@ function drawHUD() {
   if (ship.boostTimer > 0) {
     ctx.fillStyle = ACCENT;
     ctx.fillText(`VELOCIDAD x2  ${ship.boostTimer.toFixed(1)}s`, W / 2, 46);
+  }
+
+  if (ship.tripleTimer > 0) {
+    ctx.fillStyle = TRIPLE_COLOR;
+    const ty = ship.boostTimer > 0 ? 64 : 46;
+    ctx.fillText(`TRIPLE  ${ship.tripleTimer.toFixed(1)}s`, W / 2, ty);
   }
 
   for (let i = 0; i < lives; i++)
