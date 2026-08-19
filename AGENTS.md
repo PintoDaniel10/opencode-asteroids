@@ -14,7 +14,7 @@ La única verificación es la prueba manual en el navegador. No afirmes haber "p
 
 ## Arquitectura
 
-- Todo el juego vive en **un solo archivo**: `game.js`. Clases `Bullet`, `Asteroid`, `Ship`, `Particle`; estado global (`ship`, `bullets`, `asteroids`, `particles`, `score`, `lives`, `level`, `state`); funciones `update`/`draw`; loop con `requestAnimationFrame` y delta time en segundos (tope 0.05s). Entrada: `index.html` carga `game.js` con `<script>` plano.
+- Todo el juego vive en **un solo archivo**: `game.js`. Clases `Bullet`, `Asteroid`, `Ship`, `Particle`, `PowerUp`; estado global (`ship`, `bullets`, `asteroids`, `particles`, `powerups`, `score`, `lives`, `level`, `state`); funciones `update`/`draw`; loop con `requestAnimationFrame` y delta time en segundos (tope 0.05s). Entrada: `index.html` carga `game.js` con `<script>` plano.
 - **Sin imports/exports**. Todo queda en scope global. No añadas `import` ni ESM sin cambiar también `index.html` a `<script type="module">`; de lo contrario se rompe.
 - Máquina de estados con la variable global `state`: `'playing' | 'dead' | 'gameover'`. `update()` ramifica por estado.
 - Espacio toroidal: los bordes envuelven con `wrap(v, max)`.
@@ -28,4 +28,5 @@ La única verificación es la prueba manual en el navegador. No afirmes haber "p
 
 ## Notas
 
-- El `README.md` menciona "power-ups" y "estrella fugaz" que **no están implementados** en `game.js`. La fuente de verdad es el código: no asumas esas características como existentes ni las "arregles" basándote solo en el README.
+- Existe un power-up **"velocidad"**: pickup flotante (`PowerUp`, rayo dorado con wrap de bordes) que al tocarlo la nave duplica la propulsión (`THRUST * BOOST_MULT`) durante `BOOST_DURATION` segundos. Spawnea con `POWERUP_CHANCE` al destruir asteroides `size >= 2`. Se pierde al morir y al avanzar de nivel (`ship.reset()` pone `boostTimer = 0` y `nextLevel`/`initGame` vacían `powerups`).
+- El `README.md` menciona una "estrella fugaz" que **no está implementada** en `game.js`. La fuente de verdad es el código: no la asumas como existente ni la "arregles" basándote solo en el README.
