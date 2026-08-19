@@ -16,7 +16,7 @@ La única verificación es la prueba manual en el navegador. No afirmes haber "p
 
 - Todo el juego vive en **un solo archivo**: `game.js`. Clases `Bullet`, `Asteroid`, `Ship`, `Particle`, `PowerUp`; estado global (`ship`, `bullets`, `asteroids`, `particles`, `powerups`, `score`, `lives`, `level`, `state`); funciones `update`/`draw`; loop con `requestAnimationFrame` y delta time en segundos (tope 0.05s). Entrada: `index.html` carga `game.js` con `<script>` plano.
 - **Sin imports/exports**. Todo queda en scope global. No añadas `import` ni ESM sin cambiar también `index.html` a `<script type="module">`; de lo contrario se rompe.
-- Máquina de estados con la variable global `state`: `'playing' | 'dead' | 'gameover'`. `update()` ramifica por estado.
+- Máquina de estados con la variable global `state`: `'playing' | 'dead' | 'gameover' | 'select'`. `update()` ramifica por estado.
 - Espacio toroidal: los bordes envuelven con `wrap(v, max)`.
 
 ## Gotchas críticos
@@ -30,3 +30,4 @@ La única verificación es la prueba manual en el navegador. No afirmes haber "p
 
 - Existe un power-up **"velocidad"**: pickup flotante (`PowerUp`, rayo dorado con wrap de bordes) que al tocarlo la nave duplica la propulsión (`THRUST * BOOST_MULT`) durante `BOOST_DURATION` segundos. Spawnea con `POWERUP_CHANCE` al destruir asteroides `size >= 2`. Se pierde al morir y al avanzar de nivel (`ship.reset()` pone `boostTimer = 0` y `nextLevel`/`initGame` vacían `powerups`).
 - El `README.md` menciona una "estrella fugaz" que **no está implementada** en `game.js`. La fuente de verdad es el código: no la asumas como existente ni la "arregles" basándote solo en el README.
+- **Sistema de skins**: catálogo data-driven `SKINS` (array de objetos con `id`, `name`, `stroke`, `fill`, `flame`, `flameBoost`, `geometry` — vértices relativos con la nariz apuntando a +X — y `nose` — distancia de spawn de la bala). `currentSkinIdx` es el skin activo; `selectedSkinIdx` es el cursor del menú. `Ship.draw()` y `drawLifeIcon()` renderizan vía el helper `drawShipShape(skin, scale, strokeOverride)`; `Ship.tryShoot()` usa `skin.nose`. Durante el boost, la silueta se tiñe con `ACCENT` (la llama usa `skin.flameBoost`). Selección: estado `'select'` (al iniciar y con tecla **S** desde game over) — flechas izq/der o A/D mueven el cursor con wrap, Enter/Space confirman. Persistencia en `localStorage` (`asteroids.skin`) vía `loadSkin()`/`saveSkin(idx)`; el arranque llama `loadSkin()` + `showSkinSelect()`. Para añadir un skin, append a `SKINS`; no hace falta tocar `Ship.draw` ni `drawLifeIcon`.

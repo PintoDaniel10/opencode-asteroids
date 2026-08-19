@@ -71,6 +71,75 @@ const SHOOTING_STAR_LIFE    = 6;
 const SHOOTING_STAR_POINTS  = 200;
 const SHOOTING_STAR_INTERVAL = 10;
 
+// ── Skins ────────────────────────────────────────────────────────────────────
+// Catálogo data-driven: cada skin define colores y geometría (nariz apunta a +X).
+const SKINS = [
+  {
+    id: 'classic', name: 'CLÁSICO',
+    stroke: '#fff', fill: null,
+    flame: 'rgba(255, 130, 0, 0.85)', flameBoost: 'rgba(255, 210, 63, 0.95)',
+    geometry: [[20, 0], [-12, -9], [-7, 0], [-12, 9]],
+    nose: 21,
+  },
+  {
+    id: 'fighter', name: 'CAZA',
+    stroke: '#ff3b3b', fill: 'rgba(255, 59, 59, 0.12)',
+    flame: 'rgba(255, 80, 0, 0.9)', flameBoost: 'rgba(255, 210, 63, 0.95)',
+    geometry: [[24, 0], [-8, -11], [-14, -4], [-10, 0], [-14, 4], [-8, 11]],
+    nose: 25,
+  },
+  {
+    id: 'scout', name: 'EXPLORADORA',
+    stroke: '#3be8ff', fill: 'rgba(59, 232, 255, 0.12)',
+    flame: 'rgba(0, 200, 255, 0.9)', flameBoost: 'rgba(255, 210, 63, 0.95)',
+    geometry: [[18, 0], [12, -6], [2, -11], [-8, -9], [-14, -3], [-10, 6], [4, 11], [12, 6]],
+    nose: 20,
+  },
+  {
+    id: 'mothership', name: 'NODRIZA',
+    stroke: '#5dff5d', fill: 'rgba(93, 255, 93, 0.12)',
+    flame: 'rgba(0, 255, 80, 0.9)', flameBoost: 'rgba(255, 210, 63, 0.95)',
+    geometry: [[14, -5], [4, -12], [-8, -11], [-16, -4], [-16, 4], [-8, 11], [4, 12], [14, 5]],
+    nose: 16,
+  },
+  {
+    id: 'retro', name: 'RETRO',
+    stroke: '#ffb000', fill: null,
+    flame: 'rgba(255, 150, 0, 0.9)', flameBoost: 'rgba(255, 210, 63, 0.95)',
+    geometry: [[20, 0], [-12, -10], [-12, 10]],
+    nose: 21,
+  },
+];
+const SKIN_KEY = 'asteroids.skin';
+let currentSkinIdx  = 0;
+let selectedSkinIdx = 0;
+
+function loadSkin() {
+  const id = localStorage.getItem(SKIN_KEY);
+  const idx = SKINS.findIndex(s => s.id === id);
+  currentSkinIdx = idx >= 0 ? idx : 0;
+}
+
+function saveSkin(idx) {
+  localStorage.setItem(SKIN_KEY, SKINS[idx].id);
+}
+
+// Dibuja el polígono de un skin (nariz a +X). El caller fija lineWidth/lineJoin.
+function drawShipShape(skin, scale = 1, strokeOverride = null) {
+  const g = skin.geometry;
+  ctx.beginPath();
+  ctx.moveTo(g[0][0] * scale, g[0][1] * scale);
+  for (let i = 1; i < g.length; i++)
+    ctx.lineTo(g[i][0] * scale, g[i][1] * scale);
+  ctx.closePath();
+  if (skin.fill) {
+    ctx.fillStyle = skin.fill;
+    ctx.fill();
+  }
+  ctx.strokeStyle = strokeOverride || skin.stroke;
+  ctx.stroke();
+}
+
 class Asteroid {
   constructor(x, y, size = 3) {
     this.x    = x;
@@ -174,7 +243,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = SKINS[currentSkinIdx].nose;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     return [new Bullet(ox, oy, this.angle)];
@@ -185,22 +254,16 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const skin = SKINS[currentSkinIdx];
+    const boosted = this.boostTimer > 0;
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    const boosted = this.boostTimer > 0;
-    ctx.strokeStyle = boosted ? ACCENT : '#fff';
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
-
-    // Silueta clásica: triángulo con muesca trasera
-    ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
-    ctx.closePath();
-    ctx.stroke();
+    // Durante boost, la silueta se tiñ con ACCENT (señal del powerup).
+    drawShipShape(skin, 1, boosted ? ACCENT : null);
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
@@ -208,7 +271,7 @@ class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(boosted ? 12 : 6, boosted ? 24 : 14), 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = boosted ? 'rgba(255, 210, 63, 0.95)' : 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = boosted ? skin.flameBoost : skin.flame;
       ctx.stroke();
     }
 
@@ -378,7 +441,7 @@ class ShootingStar {
 let ship, bullets, asteroids, particles, powerups, shootingStars;
 let score, lives, level;
 let shootingStarTimer;
-let state;      // 'playing' | 'dead' | 'gameover'
+let state;      // 'playing' | 'dead' | 'gameover' | 'select'
 let deadTimer;
 
 function spawnAsteroids(count) {
@@ -419,6 +482,13 @@ function nextLevel() {
   spawnAsteroids(3 + level);
 }
 
+// Pantalla de selección de skin: congela el juego y muestra el catálogo.
+function showSkinSelect() {
+  initGame();
+  selectedSkinIdx = currentSkinIdx;
+  state = 'select';
+}
+
 function explode(x, y, count = 8) {
   for (let i = 0; i < count; i++) particles.push(new Particle(x, y));
 }
@@ -439,8 +509,23 @@ function killShip() {
 function update(dt) {
   if (state === 'gameover') {
     if (pressed('Space')) initGame();
+    if (pressed('KeyS')) showSkinSelect();
     particles.forEach(p => p.update(dt));
     particles = particles.filter(p => !p.dead);
+    return;
+  }
+
+  if (state === 'select') {
+    const n = SKINS.length;
+    if (pressed('ArrowLeft') || pressed('KeyA'))
+      selectedSkinIdx = (selectedSkinIdx - 1 + n) % n;
+    if (pressed('ArrowRight') || pressed('KeyD'))
+      selectedSkinIdx = (selectedSkinIdx + 1) % n;
+    if (pressed('Enter') || pressed('Space')) {
+      currentSkinIdx = selectedSkinIdx;
+      saveSkin(currentSkinIdx);
+      initGame();
+    }
     return;
   }
 
@@ -545,19 +630,13 @@ function update(dt) {
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawLifeIcon(x, y) {
+  const skin = SKINS[currentSkinIdx];
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
-  ctx.beginPath();
-  ctx.moveTo( 9,  0);
-  ctx.lineTo(-6, -5);
-  ctx.lineTo(-3,  0);
-  ctx.lineTo(-6,  5);
-  ctx.closePath();
-  ctx.stroke();
+  drawShipShape(skin, 0.45);
   ctx.restore();
 }
 
@@ -591,9 +670,54 @@ function drawOverlay(title, sub) {
   ctx.fillText(sub, W / 2, H / 2 + 22);
 }
 
+function drawSkinSelect() {
+  const n = SKINS.length;
+  const slotW = W / n;
+  const cy = H / 2;
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 34px monospace';
+  ctx.fillText('SELECCIONA TU NAVE', W / 2, 90);
+
+  for (let i = 0; i < n; i++) {
+    const skin = SKINS[i];
+    const cx = slotW * i + slotW / 2;
+    const selected = i === selectedSkinIdx;
+    const scale = selected ? 1.8 : 1.2;
+
+    if (selected) {
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - slotW / 2 + 12, cy - 70, slotW - 24, 140);
+    }
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 2);   // nariz hacia arriba
+    ctx.lineWidth = selected ? 2 : 1.5;
+    ctx.lineJoin = 'round';
+    drawShipShape(skin, scale);
+    ctx.restore();
+
+    ctx.fillStyle = selected ? ACCENT : 'rgba(255,255,255,0.6)';
+    ctx.font = selected ? 'bold 15px monospace' : '14px monospace';
+    ctx.fillText(skin.name, cx, cy + 110);
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = '15px monospace';
+  ctx.fillText('← →  NAVEGAR     ESPACIO  CONFIRMAR', W / 2, H - 40);
+}
+
 function draw() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
+
+  if (state === 'select') {
+    drawSkinSelect();
+    return;
+  }
 
   particles.forEach(p => p.draw());
   asteroids.forEach(a => a.draw());
@@ -605,7 +729,7 @@ function draw() {
   drawHUD();
 
   if (state === 'gameover')
-    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`);
+    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO REINICIAR · S SKINS`);
 }
 
 // ── Loop principal ────────────────────────────────────────────────────────────
@@ -619,5 +743,6 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-initGame();
+loadSkin();
+showSkinSelect();
 requestAnimationFrame(loop);
