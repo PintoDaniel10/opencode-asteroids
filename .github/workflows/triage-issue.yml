@@ -1,0 +1,74 @@
+name: triage-issue
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install opencode
+        run: curl -fsSL https://opencode.ai/install | bash
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+
+      - name: Run opencode triage
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          cat > /tmp/prompt.txt <<'EOF'
+          Eres un asistente de triage del repositorio "opencode-asteroids" (clon del juego Asteroids en HTML5 Canvas puro, sin dependencias ni bundler). Antes de empezar, lee `AGENTS.md` y `game.js` para entender la arquitectura (clases Ship/Asteroid/Bullet/Particle/PowerUp, catálogo data-driven `SKINS`, power-ups de velocidad/triple/escudo, estado global, espacio toroidal).
+
+          Se acaba de crear un issue. El número del issue está en la variable de entorno `$ISSUE_NUMBER`. Realiza estos pasos en orden:
+
+          1. Lee el issue ejecutando: `gh issue view $ISSUE_NUMBER`
+             (obtendrás título, cuerpo y autor).
+
+          2. Clasifica el issue en 1 a 3 labels usando SOLO estas (ya existen en el repo):
+             - `bug` — algo no funciona como se espera.
+             - `enhancement` — nueva feature o mejora (nave, skin, power-up, efecto).
+             - `documentation` — mejora de docs o README.
+             - `question` — duda o pedido de información; no es defecto ni feature.
+             - `accessibility` — accesibilidad.
+             - `good first issue` — cambio simple y aislado, apto para novatos.
+             No uses otras labels. Si ninguna encaja, no añadas ninguna.
+
+          3. Redacta un resumen en español, en markdown, con EXACTAMENTE estas secciones en este orden:
+             ## Resumen
+             (una o dos frases del problema o pedido)
+             ## Contexto
+             (qué motiva el issue; si toca código, cita el archivo y símbolo, ej. `game.js` -> `Ship` o `SKINS`)
+             ## Comportamiento esperado
+             (qué debería pasar)
+             ## Criterios de aceptación
+             (lista de viñetas verificables)
+             Conserva toda la información relevante del autor. No inventes requisitos que el autor no mencionó. Si el cuerpo del issue está vacío, indícalo en `Contexto` y deja pendiente lo que falte.
+
+          4. Aplica las labels elegidas con `gh` (no las escribas a mano en el cuerpo):
+             `gh issue edit $ISSUE_NUMBER --add-label "bug,enhancement"`
+             Si no elegiste ninguna, omite este paso.
+
+          5. Publica el resumen como comentario:
+             - Guarda el resumen en `/tmp/resumen.md`.
+             - Ejecuta: `gh issue comment $ISSUE_NUMBER --body-file /tmp/resumen.md`
+
+          Reglas estrictas:
+          - No edites el cuerpo original del issue.
+          - No hagas commit, push ni crees PR.
+          - No modifiques archivos del repositorio; usa solo `/tmp` para archivos temporales.
+          - Trabaja únicamente con `gh` y archivos en `/tmp`.
+          EOF
+          opencode run --auto --model opencode-go/glm-5.2 "$(cat /tmp/prompt.txt)"
